@@ -14,7 +14,7 @@ namespace VotingApp.Services
             _repo = repo;
         }
 
-        public virtual VoteConfirmation CastVote(int citizenId, int ballotItemId, int ballotItemOption, string writeIn = null)
+        public VoteConfirmation CastVote(int citizenId, int ballotItemId, int ballotItemOption, string writeIn = null)
         {
             // Verify that the citizen exists
             var citizen = _repo.GetCitizen(citizenId);

@@ -10,59 +10,52 @@ namespace VotingApp.UnitTests
 {
     public class CastVoteTests
     {
-        #region -- Constructor --
+        #region -- Private Fields and Constructor --
+
+        private readonly IVotingRepository _repo;
+        private readonly VotingService _service;
 
         public CastVoteTests()
         {
             _repo = A.Fake<IVotingRepository>(options => options.Strict());
             A.CallTo(() => _repo.GetCitizen(CitizenId)).Returns(Citizen);
-            A.CallTo(() => _repo.GetBallotItem(BallotItemId)).Returns(BallotItem);
+            A.CallTo(() => _repo.GetBallotItem(BallotItemId)).Returns(BallotItemWithoutWriteIn);
             A.CallTo(() => _repo.IsCitizenEligibleToVoteOnBallotItem(CitizenId, BallotItemId)).Returns(true);
             A.CallTo(() => _repo.GetVote(CitizenId, BallotItemId)).Returns(null);
             A.CallTo(() => _repo.AddVote(CitizenId, BallotItemId, A<int>._, A<string>._)).Returns(VoteConfirmation);
-            _service = A.Fake<VotingService>(options => options
-                .Strict()
-                .WithArgumentsForConstructor(new object[] { _repo }));
-            A.CallTo(() => _service.CastVote(A<int>._, A<int>._, A<int>._, A<string>._))
-                .CallsBaseMethod();
+            _service = new VotingService(_repo);
         }
 
         #endregion
 
-        #region -- Private Members/Properties --
+        #region -- Test Data --
 
-        private IVotingRepository _repo { get; set; }
-        private VotingService _service { get; set; }
-
-        private const int CitizenId = 12345;
-        private const int BallotItemId = 123;
-        private const int BallotItemOption = 1;
-        private const int WriteInOption = 0;
-        private const string WriteInValue = "Chris Kuroda";
+        private static readonly int CitizenId = 12345;
+        private static readonly int BallotItemId = 123;
+        private static readonly int ValidOption = 1;
+        private static readonly int InvalidOption = 7;
+        private static readonly int WriteInOption = 0;
+        private static readonly string WriteInValue = "Chris Kuroda";
         private static readonly Citizen Citizen = new Citizen { CitizenId = CitizenId };
         private static readonly BallotItemOption TreyAnastasio = new BallotItemOption
         {
             BallotItemOptionId = 1,
             Name = "Trey Anastasio",
-            Description = "Guitarist and lead vocalist for the band Phish",
         };
         private static readonly BallotItemOption PageMcConnell = new BallotItemOption
         {
             BallotItemOptionId = 2,
             Name = "Page McConnell",
-            Description = "Keyboardist and vocalist for the band Phish",
         };
         private static readonly BallotItemOption MikeGordon = new BallotItemOption
         {
             BallotItemOptionId = 3,
             Name = "Mike Gordon",
-            Description = "Bassist and vocalist for the band Phish",
         };
         private static readonly BallotItemOption JonFishman = new BallotItemOption
         {
             BallotItemOptionId = 4,
             Name = "Jon Fishman",
-            Description = "Drummer and vocalist for the band Phish",
         };
         private static readonly List<BallotItemOption> Options = new List<BallotItemOption>
         {
@@ -71,7 +64,7 @@ namespace VotingApp.UnitTests
             MikeGordon,
             JonFishman,
         };
-        private static readonly BallotItem BallotItem = new BallotItem
+        private static readonly BallotItem BallotItemWithoutWriteIn = new BallotItem
         {
             BallotItemId = BallotItemId,
             Options = Options,
@@ -87,7 +80,7 @@ namespace VotingApp.UnitTests
         {
             CitizenId = CitizenId,
             BallotItemId = BallotItemId,
-            BallotItemOption = BallotItemOption,
+            BallotItemOption = ValidOption,
             WriteIn = null,
         };
         private static readonly VoteConfirmation VoteConfirmation = new VoteConfirmation
@@ -105,7 +98,7 @@ namespace VotingApp.UnitTests
             A.CallTo(() => _repo.GetCitizen(CitizenId)).Returns(null);
 
             // Act 
-            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, BallotItemOption, null));
+            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, ValidOption, null));
 
             // Assert
             Assert.NotNull(exception);
@@ -125,7 +118,7 @@ namespace VotingApp.UnitTests
             A.CallTo(() => _repo.GetBallotItem(BallotItemId)).Returns(null);
 
             // Act
-            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, BallotItemOption, null));
+            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, ValidOption, null));
 
             // Assert
             Assert.NotNull(exception);
@@ -145,7 +138,7 @@ namespace VotingApp.UnitTests
             A.CallTo(() => _repo.IsCitizenEligibleToVoteOnBallotItem(CitizenId, BallotItemId)).Returns(false);
 
             // Act
-            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, BallotItemOption, null));
+            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, ValidOption, null));
 
             // Assert
             Assert.NotNull(exception);
@@ -164,7 +157,7 @@ namespace VotingApp.UnitTests
             A.CallTo(() => _repo.GetVote(CitizenId, BallotItemId)).Returns(Vote);
 
             // Act
-            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, BallotItemOption, null));
+            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, ValidOption, null));
 
             // Assert
             Assert.NotNull(exception);
@@ -214,10 +207,27 @@ namespace VotingApp.UnitTests
         }
 
         [Fact]
+        public void CastVote_InvalidOption_Throws()
+        {
+            // Act
+            var exception = Record.Exception(() => _service.CastVote(CitizenId, BallotItemId, InvalidOption, null));
+
+            // Assert
+            Assert.NotNull(exception);
+            Assert.IsType<InvalidVoteException>(exception);
+            Assert.Equal("That option is not valid", exception.Message);
+            A.CallTo(() => _repo.GetCitizen(A<int>._)).MustHaveHappenedOnceExactly();
+            A.CallTo(() => _repo.GetBallotItem(A<int>._)).MustHaveHappenedOnceExactly();
+            A.CallTo(() => _repo.IsCitizenEligibleToVoteOnBallotItem(A<int>._, A<int>._)).MustHaveHappenedOnceExactly();
+            A.CallTo(() => _repo.GetVote(A<int>._, A<int>._)).MustHaveHappenedOnceExactly();
+            A.CallTo(() => _repo.AddVote(A<int>._, A<int>._, A<int>._, A<string>._)).MustNotHaveHappened();
+        }
+
+        [Fact]
         public void CastVote_Works()
         {
             // Act
-            var actualResult = _service.CastVote(CitizenId, BallotItemId, BallotItemOption, null);
+            var actualResult = _service.CastVote(CitizenId, BallotItemId, ValidOption, null);
 
             // Assert
             Assert.NotNull(actualResult);
